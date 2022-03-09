@@ -115,7 +115,37 @@ det(matrix3)
         5.2) run normal lm() on yhat ~ x. Does the beta coefficients match? 
         5.3) When is it problematic to find the inverse of a matrix? How does it relate to the error message we sometimes get when running regression models: (isSingular)? 
         
-        
+```{r}
+pacman::p_load(tidyverse)
+
+X <- matrix(cbind(rep(1,100),seq(1,100)),ncol = 2, nrow = 100)
+Beta <- c(30,6)
+
+df <- as.data.frame(cbind(X,X %*% Beta))
+
+ggplot(df)+aes(x=V2,y=V3)+geom_point()+geom_smooth(method="lm")+theme_bw()
+```
+There are no errors
+
+```{r}
+df$errs <- rnorm(100,0,5)
+
+df$yerrs <- df$V3+df$errs
+
+ggplot(df)+aes(x=V2,y=yerrs)+geom_point()+geom_abline(slope=6,intercept=30)
+
+```
+Yes
+
+```{r}
+(solve(t(X)%*%X)%*%t(X))%*%matrix(df$yerrs)
+
+lm(yerrs ~ V2, df)
+
+```
+The estimated parameters almost estimate the population parameters, however errors cause a distortion.
+The coefficients match. Singularity is an issue when $|XX^{-1}| = 0$.
+
 
 ## Exercise 2
 ```{r}
@@ -125,13 +155,19 @@ mtcars
 
     1) Using matrix multiplication find the beta values of the model: *mpg ~ hp + wt + am*
 
-```{r}
-
-```
 *hint:* Design Matrix, and y vector. 
 
     2) Check if the output is the same as when you use the lm() function
 
+```{r}
+design <- matrix(c(rep(1,length(mtcars$mpg)),mtcars$hp,mtcars$wt,mtcars$am),ncol=4)
 
+
+(solve(t(design)%*%design)%*%t(design))%*%matrix(mtcars$mpg)
+
+lm(mpg ~ hp + wt + am, mtcars)
+
+
+```
 
 
