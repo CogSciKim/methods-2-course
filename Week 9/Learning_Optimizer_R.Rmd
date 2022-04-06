@@ -41,9 +41,10 @@ We that there is a minimum around $x \approx 0$.
 
 **Question:**
 - Using what we know about derivatives how would find any local maximum and minimum points?
+Extrema are localized by finding the roots of the derivative
 
 - When having found an extremum how can you be sure it is a min or max? (think higher order derivatives.) 
-
+Acceleration (the double derivative) should be positive in the case of a minimum or negative in the case of a maximum.
 
 After having answered let us look at how we can do this operation in R. 
 
@@ -68,7 +69,7 @@ We can see that using an algorithm which uses the derivatives is slightly differ
 
 
 ### Sinus function. 
-We know that a sinus function has several minimums and maximums so how does the optim() function deal with that? We will follow the same prodcedure as before, first define the function then try and optimize it. 
+We know that a sinus function has several minimums and maximums so how does the optim() function deal with that? We will follow the same procedure as before, first define the function then try and optimize it. 
 ```{r}
 sin_function <- function(x){
   f_x <- sin(x)
@@ -116,7 +117,7 @@ f <- function(x){
 
 optim(c(0,0) , f)
 ```
-The closest minimum to (x = 0, y= 0) is (x = 1, y = 1). Can we be sure that is the global minimum? Not as it currently stand, we could modify our algorithm to look broader or do some weighted search but this is one of the big issues with optmizers.   
+The closest minimum to (x = 0, y= 0) is (x = 1, y = 1). Can we be sure that is the global minimum? Not as it currently stands, we could modify our algorithm to look broader or do some weighted search but this is one of the big issues with optimizers.   
 
 However, we are now quite close to a scenario in which we can optimize the RSS of simple regression model with an intercept and 1 predictor. Imagine that the X-axis is the different Beta_1 values and Y-axis is the different intercepts and the Z-axis is our cost/loss. We wanna find the intercept and slope or in other words the X and Y values which minimizes our RSS or Z-axis. All we need to do is create a function which calculates RSS based on our $\theta , X ,y$.
 
@@ -169,37 +170,193 @@ Now it is time for you to get your hands dirty with the optim() function.
 ## Exercises
 
 1) Choose a mathematical function with 4 minimums in the definition set you have chosen. 
-  a) Hard code the functiom into R and plot it.
+  a) Hard code the function into R and plot it.
+```{r}
+library(tidyverse)
+
+f <- function(x) sin(x)
+df <- data.frame(x=c(0:8*pi))
+
+ggplot(df)+aes(x)+geom_function(fun=f)+theme_bw()
+
+```
+  
   b) Find the 4 minimums using the optim() function. 
+```{r}
+
+x=2*pi
+minlist = c()
+
+repeat{
+  minimum = optim(x, f,method="CG")$par
+  print(paste("for x = ", x," the closest minimum is at x =",minimum))
+  x = x + 2*pi
+  minlist = append(minlist,minimum)
+  if (x > 8*pi) break("X limit reached")
+}
+
+
+```
+  
   c) Check if the they are indeed minimums using the second derivative rule we learned last class. 
-  d) Find the maximums or in other words, find the x's with maximises f(x). (Hint: Optim() always minimizes the return() so maybe switch the sign? How can max become min? )
+```{r}
+cos(minlist)
+-sin(minlist)
+
+```
+  
+  d) Find the maximums or in other words, find the x's which maximizes f(x). (Hint: Optim() always minimizes the return() so maybe switch the sign? How can max become min? )
+```{r}
+reverse_f = function(x) -sin(x)
+
+x=0
+
+repeat{
+  maximum = optim(x, reverse_f,method="CG")$par
+  print(paste("for x = ", x," the closest maximum is at x =",maximum))
+  x = x + 2*pi
+  minlist = append(minlist,minimum)
+  if (x > 6*pi) break("X limit reached")
+}
+```
+
+
   
 2) Using the above introduction to the linear regression using optim().
   a) Create Nx5 design matrix with the intercept and 4 different predictors. 
+```{r}
+
+x <- seq(1,10)
+design <- matrix(c(rep(1,10),x,x^2,sqrt(x),exp(x)),nrow=10)
+
+```
+
   b) Simulate y depended on the design matrix. (Hint: Make y dependend on all the different predictors.) don't forget to add some error. 
-  c) Create a loss function which we want to minimze (I would suggest RSS or MSE to start with.) 
+```{r}
+beta <- c(16,13,1,2,1e-4)
+
+true_val <- design%*%beta + rnorm(10,0,10)
+```
+
+  c) Create a loss function which we want to minimize (I would suggest RSS or MSE to start with.) 
+```{r}
+loss <- function(true_y,x,beta){
+  sum((true_y-x%*%beta)^2)
+}
+
+```
+
   d) Use optim() to find the beta coefficients which minimizes our cost function. 
-  
+```{r}
+optim_pars <- optim(rep(0,5),loss,x=design,true_y=true_val)
+coeff <- optim_pars$par
+
+optim_pars
+```
+
+```{r}
+design%*%coeff
+design%*%beta
+```
+
 
 3) It is time to start getting creative. 
   a) Create a design matrix with one predictor and simulate y from that design matrix.
+```{r}
+design <- matrix(c(rep(1,10),seq(1,10)),ncol=2)
+beta <- c(1,2)
+
+y <- design%*%beta+rnorm(10,0,0.5)
+```
+  
   b) Make at least 3-5 cost functions which you think could make sense. 
+```{r}
+loss1 <- function(x,y,param){sum((y-x%*%param)^2)} # RSS
+
+loss2 <- function(x,y,param){sqrt((sum(y-x%*%param)^2)/(length(y)-length(param)))} # RSE
+
+loss3 <- function(x,y,param){sum(abs(y-x%*%param))/length(y)} # MAE
+
+```
+  
   c) Use optim() on the data from exercise 3a using your newly made cost functions. 
+```{r}
+optim(rep(0,2),loss1,x=design,y=y)$par
+optim(rep(0,2),loss2,x=design,y=y)$par
+optim(rep(0,2),loss3,x=design,y=y)$par
+
+```
+  
   d) Try and plot the cost. (Hint: you need to simulate the intercept values and slope values to find the cost function which then can be plotted)
+```{r}
+p1 <- seq(0,2,0.1)
+p2 <- seq(0,2,0.1)
+
+reslist1 <- c()
+reslist2 <- c()
+reslist3 <- c()
+
+for (i in 1:(length(p1)*length(p2))){
+  params <- as.numeric(expand.grid(p1,p2)[i,])
+  reslist1 <- append(reslist1,loss1(x=design,y=y,params))
+  reslist2 <- append(reslist2,loss2(x=design,y=y,params))
+  reslist3 <- append(reslist3,loss3(x=design,y=y,params))
+} 
+
+library(plotly)
+
+plot_ly(x=expand.grid(p1,p2)$Var1,y=expand.grid(p1,p2)$Var2,z=reslist1)
+
+plot_ly(x=expand.grid(p1,p2)$Var1,y=expand.grid(p1,p2)$Var2,z=reslist2)
+
+plot_ly(x=expand.grid(p1,p2)$Var1,y=expand.grid(p1,p2)$Var2,z=reslist3)
+
+```
 
 
 
 ### Exercises from the book. 
 **8.1**
-
+a) Nominal
+b) Ordinal
+c) Ordinal
+d) Ratio
+e) Nominal
+f) Nominal
+g) Ordinal/nominal
+h) Nominal
 
 **8.2** 
+a) Interval
+
+b) Ordinal
+
+c) Nominal
+
+d)
+```{r}
+annoying_df <- data.frame(Grade=c(37,39,28,73,50,59,41,57,46,41,62,28,26,66,53,54,37,46,25)) %>% 
+  mutate(nominal=if_else(Grade > 60 | Grade < 45,"Atypical","Typical"),ordinal=ifelse(Grade < 45,"Low",ifelse(Grade > 60,"High","Medium")))
+
+mean(annoying_df$Grade)
+sd(annoying_df$Grade)
+
+```
 
 
 **8.3** 
+```{r}
+df <- data.frame(vacancy=c(0,1,2,3,4),y_count = c(59,27,9,1,0))
+
+df$y_expected <- dpois(c(0,1,2,3,4),0.5)*96
+
+df
+
+```
 
 
 **8.4**
+Interval, ratio is implied
 
 **(extra)**
 
@@ -305,25 +462,124 @@ Adding uncertainty counteracts that which would otherwise regress towards the me
 Which of the following statements would you choose to describe a beta coefficient for  Daughter_height ~ Mother_height(Centralized).
       1) *The beta coefficient for mothers_height of* $\beta = 0.79 , SE = 0.10 , p < 0.05$ *shows the effect of mothers_height on daughter being 0.79 with a SE = 0.10.*
       2) *The beta coefficient for mothers_height of* $\beta = 0.79 , SE = 0.10 , p < 0.05$
-      *shows that a mother one cm taller compared to another mother is suspected to have a daughter which is 0.79 cm higher with 95% confidence intervals of [0.59, 0.99].* 
+      *shows that a mother one cm taller compared to another mother is suspected to have a daughter who is 0.79 cm higher with 95% confidence intervals of [0.59, 0.99].* 
+
+Number 2 is most descriptive.
 
 **Exercise 2**
 Come up with your own example of regression towards the mean: 
   a) Simulate your own example with repeated dependent iterations.
       1) With no error
       2) With error
-      
+```{r}
+step1 <- rnorm(100, mean = 100, sd = 50)
+step1_standard <- step1 - mean(step1)
+```
+
+```{r}
+step2 <- 100 + step1_standard * 0.1
+step2_standard <- step2 - mean(step2)
+
+step3 <- 100 + step2_standard * 0.1
+step3_standard <- step3 - mean(step2)
+
+step4 <- 100 + step3_standard * 0.1
+
+```
+
+```{r}
+step2_err <- rnorm(100, mean = 100 + step1_standard * 0.1, sd = 10)
+step2_err_standard <- step1 - mean(step1)
+
+step3_err <- rnorm(100, mean = 100 + step2_err_standard * 0.1, sd = 10)
+step3_err_standard <- step1 - mean(step1)
+
+step4_err <- rnorm(100, mean = 100 + step3_err_standard * 0.1, sd = 10)
+
+
+```
+
+
   b) Check each step with a linear regression and a plot.
-  
+```{r}
+df <- data.frame(step1,step1_standard,step2,step2_standard,step3,step3_standard)
+
+df %>% ggplot()+aes(x=step1_standard,y=step2)+geom_point()+geom_smooth(method="lm",formula=y~x)
+df %>% ggplot()+aes(x=step2_standard,y=step3)+geom_point()+geom_smooth(method="lm",formula=y~x)
+df %>% ggplot()+aes(x=step3_standard,y=step4)+geom_point()+geom_smooth(method="lm",formula=y~x)
+
+```
+```{r}
+df_err <- data.frame(step1,step1_standard,step2_err,step2_err_standard,step3_err,step3_err_standard)
+
+df_err %>% ggplot()+aes(x=step1_standard,y=step2_err)+geom_point()+geom_smooth(method="lm",formula=y~x)
+df_err %>% ggplot()+aes(x=step2_err_standard,y=step3_err)+geom_point()+geom_smooth(method="lm",formula=y~x)
+df_err %>% ggplot()+aes(x=step3_err_standard,y=step4_err)+geom_point()+geom_smooth(method="lm",formula=y~x)
+
+```
+
 
 
 ### Exercises from the book. 
 **6.2** Programming fake-data simulation: Write an R function to: (i) simulate n data points from the model, y = a + bx + error, with data points x uniformly sampled from the range (0, 100) and with errors drawn independently from the normal distribution with mean 0 and standard deviation σ; (ii) fit a linear regression to the simulated data; and (iii) make a scatter plot of the data and fitted regression line. Your function should take as arguments, a, b, n, σ, and it should return the data, print out the fitted regression, and make the plot. Check your function by trying it out on some values of a, b, n, σ.
- 
+```{r}
+sim_data <- function(a,b,n,sigma){
+  x <- runif(n,0,100)
+  y <- a+b*x+rnorm(n,0,sigma)
+  print(summary(lm(y~x)))
+  print(ggplot(data.frame(x,y))+aes(x,y)+geom_point()+geom_smooth(method="lm"))
+  
+  return(y)
+}
+
+sim_data(0,1,10,10)
+sim_data(0,1,10,1000)
+sim_data(300,-1,100,10)
+
+```
+
+
 **6.3** Variation, uncertainty, and sample size: Repeat the example in Section 6.2, varying the number of data points, n. What happens to the parameter estimates and uncertainties when you increase the number of observations?
+```{r}
+sim_data(10,1,10,10)
+sim_data(10,1,20,10)
+sim_data(10,1,30,10)
+sim_data(10,1,40,10)
+sim_data(10,1,100,10)
+sim_data(10,1,1000,10)
+sim_data(10,1,10000,10)
+```
+Estimate precision increases.
 
 **6.4** Simulation study: Perform the previous exercise more systematically, trying out a sequence of values of n, for each simulating fake data and fitting the regression to obtain estimate and uncertainty (median and mad sd) for each parameter. Then plot each of these as a function of n and report on what you find.
+```{r}
+sim_data <- function(n,a=1,b=0,sigma=10){
+  x <- runif(n,0,100)
+  y <- a+b*x+rnorm(n,0,sigma)
+  coeff <- lm(y~x)
+  result <- as.data.frame(summary(coeff)$coefficients) %>% 
+  select("Estimate","Std. Error") %>% 
+  mutate(row = row_number(),n) %>%
+  pivot_wider(names_from=row,values_from = c('Estimate','Std. Error'))
+  
+  return(result)
+}
 
+df <- sim_data(10)
+
+for (i in seq(100,5000,100)){
+  df <- rbind(df,sim_data(i))
+}
+df
+names(df) <- c("n","est","int","est_se","int_se")
+
+df %>% ggplot()+aes(x=n,est)+geom_smooth()
+df %>% ggplot()+aes(x=n,y=est_se)+geom_smooth()
+df %>% ggplot()+aes(x=n,int)+geom_smooth()
+df %>% ggplot()+aes(x=n,y=int_se)+geom_smooth()
+
+```
+SE drops and converges, estimates converge around true values
 
 
 
