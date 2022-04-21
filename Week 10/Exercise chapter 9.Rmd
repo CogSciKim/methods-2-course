@@ -48,12 +48,14 @@ If we get significant p-values we reject the null-hypothesis. This is telling us
 prior <- rep(1,14)
 plot(prior, type = "l", main = "Prior Dist for Beta Drip ~ Swag", xlab = "Beta coef value")
 ```
+
 ```{r}
 df <- data.frame(drip = drip , swagg = swagg)
 
 bayes_model <- stan_glm(drip ~swagg, data = df)
 summary(bayes_model)
 ```
+
 **Access our samples:**
 ```{r}
 samples <- as.matrix(bayes_model)
@@ -61,6 +63,7 @@ samples <- as.matrix(bayes_model)
 dim(samples)
 head(samples)
 ```
+
 ```{r}
 c(median = apply(samples, 2, median))
 
@@ -68,6 +71,7 @@ c(MAD = apply(samples, 2, mad))
 
 
 ```
+
 ```{r}
 par(mfrow = c(2,2))
 #Plot posterior distributions which is based on our samples. 
@@ -86,6 +90,7 @@ plot(density(samples[,3]), main = "Sigma")
 plot(drip ~ swagg)
 abline(a = bayes_model$coefficients[1], b = bayes_model$coefficients[2])
 ```
+
 ```{r}
 plot(density(bayes_model$residuals), main = "Residuals")
 mtext(paste("sd = ",sd(bayes_model$residuals), "mean =", mean(bayes_model$residuals)),side = 3, adj = 0.5, padj = .2)
@@ -167,27 +172,202 @@ You can of course choose to use normal distributed predictors or sequence or wha
 ## Chapter 9
 
 
-#### 9.1 Prediction for a comparison: 
-A linear regression is fit on high school students modeling grade
-point average given household income. Write R code to compute the 90% predictive interval for
-the difference in grade point average comparing two students, one with household incomes of
-40 000 and one with household income of 80 000.
-```{r}
-options(mc.cores = parallel::detectCores())
-
-lul <- data.frame(earning = c(4e4 , 8e4), gpa = c(6,8))
-
-stan_glm(gpa ~ earning, data = lul)
-```
-
-```{r}
-read_csv("C:/Users/sigur/Desktop/methods-2-course/Data for the book/KidIQ/data/kidiq.csv")
-```
-
-
-#### 9.2 Predictive simulation for linear regression: 
+### 9.2 Predictive simulation for linear regression: 
 Using data of interest to you, fit a linear regression. Use the output from this model to simulate a predictive distribution for observations with a
 particular combination of levels of all the predictors in the regression.
 
+```{r}
+kidiq <- read_csv("../Data for the book/KidIQ/data/kidiq.csv")
+kidiq
+```
+```{r}
+bayes_iq <- stan_glm(kid_score~mom_iq,data=kidiq)
 
+new_iq <- data.frame(mom_iq = seq(60,140,1))
+
+posterior_predict(bayes_iq, newdata = new_iq)
+```
+
+
+
+### 9.3 
+```{r}
+elections_economy <- read_delim("../Data for the book/ElectionsEconomy/data/hibbs.dat")
+
+elections_glm <- stan_glm(vote~growth,data=elections_economy)
+
+new_election <- data.frame(growth = 2)
+
+pred <- posterior_predict(elections_glm, newdata = new_election)
+pred2 <- predict(elections_glm, newdata = new_election)
+pred3 <-posterior_linpred(elections_glm, newdata = new_election) 
+  
+  
+mad(pred)
+median(pred)
+
+```
+
+### 9.8
+```{r}
+cost <- 3e5
+incr <- 5e5
+se <- 2e5
+
+preds <- rnorm(100000,incr,se)*20-cost*20
+
+median(preds)
+mad(preds)
+
+predsdf <- data.frame(preds)
+
+predsdf %>% 
+  ggplot()+geom_histogram(aes(x=preds))+geom_vline(xintercept=0)
+
+predsdf <- predsdf %>% mutate(less = ifelse(preds>0,0,1))
+
+sum(predsdf$less)/length(predsdf$less)
+
+```
+
+### 9.5
+```{r}
+se_prior <- 0.05
+param_prior <-  -0.02
+se_data <- 0.16
+param_data <- 0.08
+  
+  
+post_se <- 1/(sqrt(1/(se_prior^2)+1/(se_data^2)))
+post_param <- ((param_prior/(se_prior^2))+(param_data/(se_data^2)))/(1/(se_prior^2)+1/(se_data^2))
+
+post_se
+post_param
+```
+
+
+### 9.9
+$$
+\beta_0 = \\
+\beta_1 = 
+
+$$
+```{r}
+exam_df <- data.frame(
+  midterm = rnorm(1000,75,12.5)
+)
+
+exam_df <- exam_df %>% 
+  mutate(midterm = ifelse(midterm < 100,midterm,100),
+         final = midterm + rnorm(1000,10,10))
+
+exam_df %>% ggplot()+geom_point()+aes(x=midterm,y=final)+geom_smooth(method = "lm",formula=y~x)+ylim(0,100)+xlim(0,100)
+
+
+summary(lm(final~midterm,exam_df))
+
+```
+
+
+### 9.10
+```{r}
+# a 
+x <- runif(100,-1,1)
+y <- x*0.1+1+rnorm(100,0,0.5)
+
+data.frame(x,y) %>% ggplot()+aes(x,y)+geom_point()
+
+lm1 <- lm(y~x)
+lm2 <- stan_glm(y~x)
+
+lm1$coefficients
+coeff <- data.frame(int=lm2$coefficients[1],y=lm2$coefficients[2],n=100)
+
+for (n in seq(10,1000,10)){
+  x <- runif(n,-1,1)
+  y <- x*0.1+1+rnorm(n,0,0.5)
+  bayes_mod <- stan_glm(y~x)
+  df <- data.frame(int=bayes_mod$coefficients[1],y=bayes_mod$coefficients[2],n=n)
+  coeff <- rbind(coeff, df) 
+}
+
+coeff
+
+coeff %>% ggplot() + aes(x=n,y=int) + geom_point() + geom_smooth() + geom_hline(yintercept=lm1$coefficients[1]/2)
+coeff %>% ggplot() + aes(x=n,y) + geom_point() + geom_smooth() + geom_hline(yintercept=lm1$coefficients[2]/2)
+
+```
+b)
+0 and 0.1 for the slope, infty and 1 for the intercept
+
+c)
+Never
+
+## Chapter 10
+### 10.1
+```{r}
+b = c(1,2,-1,-2)
+
+z = rbinom(100,1,0.5)
+x = rnorm(100,z,1)
+
+y = b[1]+x*b[2]+z*b[3]+x*z*b[4] + rnorm(100,0,3)
+
+
+# a
+p <- data.frame(x,y,z=as.factor(z)) %>% ggplot()+aes(x,y,shape=z)+geom_point()+theme_bw()
+p
+
+#b
+lm1 <- summary(lm(y~x+z))
+
+p+geom_abline(intercept = lm1$coefficients[1,1],slope = lm1$coefficients[2,1])+geom_abline(intercept = lm1$coefficients[1,1]+lm1$coefficients[3,1],slope = lm1$coefficients[2,1])
+
+#c 
+lm2 <- summary(lm(y~x+z+x*z))
+
+lm2$coefficients
+
+p+geom_abline(intercept = lm2$coefficients[1,1],slope = lm2$coefficients[2,1])+geom_abline(intercept = lm2$coefficients[1,1]+lm2$coefficients[3,1],slope = (lm2$coefficients[2,1]+lm2$coefficients[4,1]))
+
+```
+
+### 10.2
+a
+$$
+y = 1.6x + 1.2\\
+y = 2.3x+3.9
+$$
+
+b
+```{r}
+1.6*seq(1,10)+1.2
+2.3*seq(1,10)+3.9
+```
+
+### 10.3
+```{r}
+var1 <- rnorm(1000,0,1)
+var2 <- rnorm(1000,0,1)
+
+summary(lm(var1~var2))
+
+```
+
+
+### 10.4
+```{r}
+z_scores <- numeric(length=100)
+
+z_scores <- rep(NA, 100)
+for (k in 1:100) {
+var1 <- rnorm(1000, 0, 1)
+var2 <- rnorm(1000, 0, 1)
+fake <- data.frame(var1, var2)
+fit <- stan_glm(var2 ~ var1, data=fake)
+z_scores[k] <- coef(fit)[2] / se(fit)[2]
+}
+
+sum(z_scores>2)
+```
 
